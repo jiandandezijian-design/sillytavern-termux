@@ -4,7 +4,7 @@
 # 全国内源，无需梯子 · 每次打开 Termux 自动显示控制面板
 #==========================================================================
 
-set -e
+# 注意：不使用 set -e，避免交互式 read 被意外中断
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -274,7 +274,7 @@ install_tavern() {
     echo ""
     echo -e "${YELLOW}⚠️ 保活必做：挂小窗 + 省电策略→无限制${NC}"
     echo ""
-    read -p "是否现在启动酒馆？[Y/n] " START
+    read -p "是否现在启动酒馆？[Y/n] " START || START=y
     if [ "$START" != "n" ] && [ "$START" != "N" ]; then
         start_tavern
     fi
@@ -288,9 +288,14 @@ install_tavern() {
 SELF=$(realpath "$0" 2>/dev/null || echo "$0")
 
 if [ "$SELF" != "$MENU_FILE" ] && [ ! -f "$MENU_FILE" ]; then
-    # 以安装模式运行
+    # 以安装模式运行，安装完继续显示菜单
     install_tavern
-    exit 0
+fi
+
+# 把自身保存为菜单文件（如果在安装中没保存）
+if [ "$SELF" != "$MENU_FILE" ] && [ -f "$SELF" ]; then
+    cp "$SELF" "$MENU_FILE" 2>/dev/null || true
+    chmod +x "$MENU_FILE" 2>/dev/null || true
 fi
 
 # 检查酒馆是否安装
