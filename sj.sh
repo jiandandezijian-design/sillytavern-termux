@@ -360,10 +360,10 @@ do_helper(){
     if git -C "$dir" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=40 pull --ff-only; then ok "助手已更新"; else err "更新失败（网络？）"; fi
     return
   fi
-  for url in "https://github.com/N0VI028/JS-Slash-Runner.git" \
-             "https://gh-proxy.com/https://github.com/N0VI028/JS-Slash-Runner.git" \
-             "https://ghfast.top/https://github.com/N0VI028/JS-Slash-Runner.git" \
-             "https://gh.llkk.cc/https://github.com/N0VI028/JS-Slash-Runner.git"; do
+  for url in "https://github.com/jiandandezijian-design/JS-Slash-Runner.git" \
+             "https://gh-proxy.com/https://github.com/jiandandezijian-design/JS-Slash-Runner.git" \
+             "https://ghfast.top/https://github.com/jiandandezijian-design/JS-Slash-Runner.git" \
+             "https://gh.llkk.cc/https://github.com/jiandandezijian-design/JS-Slash-Runner.git"; do
     echo -e "${C}  ▸ 线路：$url${N}"
     if timeout 300 git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=40 clone --progress --depth 1 "$url" "$dir"; then
       ok "助手装好了，重启酒馆后在扩展里看"; return
