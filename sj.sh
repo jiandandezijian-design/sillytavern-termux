@@ -36,7 +36,7 @@ MIRROR_URLS=(
 OFFICIAL_MIRROR="https://packages-cf.termux.dev/apt/termux-main"
 TERMUX_MIRROR=""
 TOTAL=7
-SCRIPT_VER="v3.1"
+SCRIPT_VER="v3.3"
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"   # 本脚本自身路径（bash sj.sh 运行时有效）
 SJ="$HOME/.sj.sh"                          # 控制面板存放位置（唯一真身）
 MENU_URL="https://raw.githubusercontent.com/jiandandezijian-design/sillytavern-termux/main/sj.sh"
@@ -70,9 +70,25 @@ TIPS=(
 )
 tip(){ echo -e "${P}  ♪ ${TIPS[$((RANDOM % ${#TIPS[@]}))]}${N}"; }
 # 通过 curl | bash 运行时，输入要从 /dev/tty 读
-ask(){ local a; echo -ne "${B}  ? $1 ${N}[Y/n] "; read -r a < /dev/tty; [[ -z "$a" || "$a" =~ ^[Yy] ]]; }
+# 提问：优先读标准输入；没有终端（curl | bash）时直接返回默认值，绝不阻塞
+_have_tty(){ [[ -t 0 ]] || { : < /dev/tty; } 2>/dev/null; }
+
+ask(){
+  local a
+  [[ -t 0 ]] || return 0          # 无终端 → 默认「是」
+  echo -ne "${B}  ? $1 ${N}[Y/n] "
+  read -r -t 120 a || a=""
+  [[ -z "$a" || "$a" =~ ^[Yy] ]]
+}
+
 # 默认「否」的提问：要输入 y 才算同意
-ask_no(){ local a; echo -ne "${B}  ? $1 ${N}[y/N] "; read -r a < /dev/tty; [[ "$a" =~ ^[Yy] ]]; }
+ask_no(){
+  local a
+  [[ -t 0 ]] || return 1          # 无终端 → 默认「否」
+  echo -ne "${B}  ? $1 ${N}[y/N] "
+  read -r -t 120 a || a=""
+  [[ "$a" =~ ^[Yy] ]]
+}
 
 # ---------- 生成控制面板、自动弹面板、桌面快捷方式 ----------
 write_menu(){
@@ -232,7 +248,7 @@ do_update(){
   node_sync || warn "依赖同步有问题，可在菜单里选修复"
   [[ -d "$HELPER_DIR/.git" ]] && do_helper
   if [[ "$was" == 1 ]]; then
-    echo -ne "${Y}  更新前在运行，现在重启？[Y/n] ${N}"; local a; read -r a
+    echo -ne "${Y}  更新前在运行，现在重启？[Y/n] ${N}"; local a; read -r -t 60 a || a=""
     [[ "$a" =~ ^[Nn]$ ]] || do_start background
   fi
 }
@@ -259,7 +275,7 @@ do_logs(){
   tail -n 40 "$f" 2>/dev/null
   echo -e "${DIM}-----------------------------------------${N}"
   echo -ne "${B}  [1] 实时跟随  [2] 清空日志  [0] 返回：${N}"
-  local a; read -r a
+  local a; read -r -t 60 a || a=""
   case "$a" in
     1) echo -e "${DIM}  Ctrl+C 退出跟随${N}"; tail -f "$f" 2>/dev/null ;;
     2) : > "$f" 2>/dev/null && ok "日志已清空" ;;
@@ -272,7 +288,7 @@ do_branch(){
   echo -e "${C}  当前分支：${B}$(git rev-parse --abbrev-ref HEAD)${N}"
   echo "    1. release（正式版）    2. staging（测试版）    0. 返回"
   echo -ne "${B}  输入数字后回车：${N}"
-  local c; read -r c
+  local c; read -r -t 60 c || c=""
   case "$c" in
     1) ST_BRANCH="release" ;;
     2) ST_BRANCH="staging" ;;
@@ -327,13 +343,13 @@ do_restore(){
   local i
   for i in "${!files[@]}"; do echo -e "  ${B}$((i+1)).${N} $(basename "${files[$i]}")"; done
   echo -ne "${B}  输入要恢复的编号，回车取消：${N}"
-  local n; read -r n
+  local n; read -r -t 60 n || n=""
   [[ "$n" =~ ^[0-9]+$ && $n -ge 1 && $n -le ${#files[@]} ]] || { ok "已取消"; return; }
   local f="${files[$((n-1))]}"
   tar -tzf "$f" 2>/dev/null | head -n 1 | grep -q '^data' || { err "这个文件不是酒馆备份或已损坏"; return; }
   echo -e "${Y}  会替换现在的聊天/角色卡/设置（旧的会改名保存，不删）${N}"
   echo -ne "${Y}  确认恢复？y 确认，回车取消：${N}"
-  local a; read -r a
+  local a; read -r -t 60 a || a=""
   [[ "$a" =~ ^[Yy]$ ]] || { ok "已取消"; return; }
   local was=0; is_running && was=1
   [[ "$was" == 1 ]] && do_stop >/dev/null 2>&1
@@ -431,14 +447,14 @@ do_doctor(){
 do_uninstall(){
   echo -e "${R}${B}  ⚠ 会删除酒馆、助手、聊天记录和角色卡！${N}"
   echo -ne "${Y}  真要卸载？y 确认，回车取消：${N}"
-  local a; read -r a
+  local a; read -r -t 60 a || a=""
   [[ "$a" =~ ^[Yy]$ ]] || { ok "已取消"; return; }
   echo -ne "${Y}  卸载前先导出备份？[Y/n] ${N}"
-  read -r a
+  read -r -t 60 a || a=""
   if [[ -z "$a" || "$a" =~ ^[Yy] ]]; then
     do_backup
     echo -ne "${Y}  备份好了就输入 y 继续卸载：${N}"
-    read -r a
+    read -r -t 60 a || a=""
     [[ "$a" =~ ^[Yy]$ ]] || { ok "已取消"; return; }
   fi
   do_stop >/dev/null 2>&1
@@ -470,7 +486,7 @@ menu_update(){
     if curl -fsSL --max-time 20 -o "$tmp" "$url" 2>/dev/null && bash -n "$tmp" 2>/dev/null; then
       if cmp -s "$tmp" "$SJ"; then ok "已经是最新版"; rm -f "$tmp"; return 0; fi
       cp "$tmp" "$SJ" && chmod +x "$SJ" && ok "菜单已更新，按回车生效" && rm -f "$tmp"
-      echo -ne "${C}  按回车重开面板…${N}"; read -r
+      echo -ne "${C}  按回车重开面板…${N}"; read -r -t 30 || true
       exec bash "$SJ"
     fi
   done
@@ -515,7 +531,7 @@ while true; do
   echo -e "  ${B}[s]${N} 自检   ${B}[u]${N} 更新菜单"
   echo
   echo -ne "${B}  请输入选项 [0-9/s/u]: ${N}"
-  read -r c
+  if ! read -r -t 300 c; then echo; echo -e "${Y}  没有输入，已退出面板${N}"; exit 0; fi
   case "$c" in
     1) do_start ;;
     2) do_stop ;;
@@ -534,7 +550,7 @@ while true; do
   esac
   echo
   echo -ne "${C}  按回车返回面板…${N}"
-  read -r
+  read -r -t 60 || true
 done
 
 EOF
@@ -732,7 +748,24 @@ echo -e "${C}  安装日志保存在 ~/橘子酒馆安装日志.txt${N}"
 # 停止记录日志，之后的酒馆运行输出不写进日志
 exec 1>&3 2>&4 3>&- 4>&-
 sleep 0.3
+
+# 后台启动酒馆：绝不占前台、绝不读终端，卡住也能 Ctrl+C 退出
 if ask "现在就启动酒馆吗？"; then
-  exec bash "$SJ" start < /dev/tty
+  echo
+  echo -e "${C}  ▸ 后台启动中，稍等…${N}"
+  bash "$SJ" start 2>&1 | tail -n 8
+  sleep 1
+  if bash "$SJ" status 2>/dev/null | grep -q running; then
+    echo -e "${G}  ✔ 已在后台运行 → http://127.0.0.1:8000${N}"
+    echo -e "${C}    要关闭：打开面板选 [2]，或 bash ~/.sj.sh stop${N}"
+  else
+    echo -e "${Y}  ⚠ 没起来，看日志：tail -n 30 ~/SillyTavern/nohup.out${N}"
+  fi
 fi
-echo -e "${P}  好哒～想玩的时候输入 ./sj.sh 就行 (｡•ᴗ-)✧${N}"
+
+echo
+echo -e "${P}  想玩的时候输入 ./sj.sh 就开会控制面板 (｡•ᴗ-)✧${N}"
+# 收尾：直接进面板（面板自己会处理无终端的情况）
+if [[ -t 0 ]]; then
+  exec bash "$SJ"
+fi
